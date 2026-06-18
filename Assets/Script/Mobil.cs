@@ -1,0 +1,102 @@
+using UnityEngine;
+using UnityEngine.SceneManagement; // Tambahan wajib biar bisa nge-restart level
+
+public class mobil : MonoBehaviour
+{
+    private float horizontalInput, verticalInput;
+    private float currentSteerAngle, currentbreakForce;
+    private bool isBreaking;
+    //settings
+    [SerializeField] private float motorForce, breakForce, maxSteerAngle;
+
+    //wheel coliders
+    [SerializeField] private WheelCollider frontLeftWheelCollider, frontRightWheelCollider;
+    [SerializeField] private WheelCollider rearLeftWheelCollider, rearRightWheelCollider;
+
+    //wheels
+    [SerializeField] private Transform frontLeftWheelTransform, frontRightWheelTransform;
+    [SerializeField] private Transform rearLeftWheelTransform, rearRightWheelTransform;
+
+    private void FixedUpdate()
+    {
+        GetInput();
+        HandleMotor();
+        HandleSteering();
+        UpdateWheels();
+    }
+
+    private void GetInput()
+    {
+        //streering input
+        horizontalInput = Input.GetAxis("Horizontal");
+
+        //acceleration input
+        verticalInput = Input.GetAxis("Vertical");
+
+        //breaking input
+        isBreaking = Input.GetKey(KeyCode.Space);
+    }
+
+    private void HandleMotor()
+    {
+        frontLeftWheelCollider.motorTorque = verticalInput * motorForce;
+        frontRightWheelCollider.motorTorque = verticalInput * motorForce;
+        currentbreakForce = isBreaking ? breakForce : 0f;
+        ApplyBreaking();
+    }
+
+    private void ApplyBreaking()
+    {
+        frontRightWheelCollider.brakeTorque = currentbreakForce;
+        frontLeftWheelCollider.brakeTorque = currentbreakForce;
+        rearLeftWheelCollider.brakeTorque = currentbreakForce;
+        rearRightWheelCollider.brakeTorque = currentbreakForce;
+    }
+
+    private void HandleSteering()
+    {
+        currentSteerAngle = maxSteerAngle * horizontalInput;
+        frontLeftWheelCollider.steerAngle = currentSteerAngle;
+        frontRightWheelCollider.steerAngle = currentSteerAngle;
+    }
+
+    private void UpdateWheels()
+    {
+        UpdateSingleWheel(frontLeftWheelCollider, frontLeftWheelTransform);
+        UpdateSingleWheel(frontRightWheelCollider, frontRightWheelTransform);
+        UpdateSingleWheel(rearLeftWheelCollider, rearLeftWheelTransform);
+        UpdateSingleWheel(rearRightWheelCollider, rearRightWheelTransform);
+    }
+
+    private void UpdateSingleWheel(WheelCollider wheelCollider, Transform wheelTransform)
+    {
+        Vector3 pos;
+        Quaternion rot;
+        wheelCollider.GetWorldPose(out pos, out rot);
+        wheelTransform.rotation = rot;
+        wheelTransform.position = pos;
+    }
+
+    // --- TAMBAHAN LOGIKA GAME OVER & FINISH DI BAWAH SINI ---
+
+    private void OnCollisionEnter(Collision tabrakan)
+    {
+        // Kalau body mobil nabrak benda keras yang punya Tag "Building"
+        if (tabrakan.gameObject.CompareTag("Building"))
+        {
+            Debug.Log("Nabrak Gedung! GAME OVER.");
+            // Restart level dari awal
+            SceneManager.LoadScene(SceneManager.GetActiveScene().name);
+        }
+    }
+
+    private void OnTriggerEnter(Collider sensor)
+    {
+        // Kalau body mobil ngelewatin area kotak transparan yang punya Tag "Finish"
+        if (sensor.gameObject.CompareTag("Finish"))
+        {
+            Debug.Log("Masuk Garis Finish! GAME SELESAI.");
+            // Nanti lu bisa tambahin script buat nampilin UI Menang di sini
+        }
+    }
+}
