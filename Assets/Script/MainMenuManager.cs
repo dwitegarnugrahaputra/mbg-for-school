@@ -1,6 +1,7 @@
 using UnityEngine;
 using UnityEngine.SceneManagement;
 using UnityEngine.UI;
+using UnityEngine.Audio; // JANGAN LUPA INI: Wajib ditambahkan untuk memanipulasi Audio Mixer!
 
 public class MainMenuManager : MonoBehaviour
 {
@@ -15,6 +16,7 @@ public class MainMenuManager : MonoBehaviour
     [SerializeField] private GameObject lockedIconLevel2; // Ikon gembok untuk Level 2
 
     [Header("Audio Settings")]
+    [SerializeField] private AudioMixer mainMixer; // Tambahan: Tempat nge-drag MainMixer lu
     [SerializeField] private Slider bgmSlider;
     [SerializeField] private Slider sfxSlider;
 
@@ -30,7 +32,6 @@ public class MainMenuManager : MonoBehaviour
         ShowMainPanel();
 
         // 2. Cek apakah Level 2 sudah terbuka (0 = terkunci, 1 = terbuka)
-        // Kita pakai PlayerPrefs agar datanya tersimpan walau game ditutup
         int level2Unlocked = PlayerPrefs.GetInt("Level2Unlocked", 0);
 
         if (level2Unlocked == 1)
@@ -45,8 +46,18 @@ public class MainMenuManager : MonoBehaviour
         }
 
         // 3. Load nilai BGM dan SFX jika sebelumnya sudah di-setting oleh player
-        if (bgmSlider != null) bgmSlider.value = PlayerPrefs.GetFloat("BGMVolume", 1f);
-        if (sfxSlider != null) sfxSlider.value = PlayerPrefs.GetFloat("SFXVolume", 1f);
+        // Default kita ganti ke 0.75f (75%) biar tidak terlalu memekakkan telinga di awal
+        if (bgmSlider != null)
+        {
+            bgmSlider.value = PlayerPrefs.GetFloat("BGMVolume", 0.75f);
+            ApplyBGMVolume(bgmSlider.value); // Langsung tembakkan volume ke mixer saat start
+        }
+        
+        if (sfxSlider != null)
+        {
+            sfxSlider.value = PlayerPrefs.GetFloat("SFXVolume", 0.75f);
+            // Catatan: Jika nanti lu bikin grup SFX di mixer, panggil fungsi apply-nya di sini
+        }
     }
 
     // --- FUNGSI UNTUK TOMBOL-TOMBOL UI ---
@@ -72,10 +83,8 @@ public class MainMenuManager : MonoBehaviour
         mainPanel.SetActive(true);
     }
 
-    // Fungsi ini dipanggil oleh Tombol Level 1 dan Level 2
     public void LoadLevel(string sceneName)
     {
-        // Pastikan sceneName sudah dimasukkan di File -> Build Settings
         SceneManager.LoadScene(sceneName);
     }
 
@@ -92,7 +101,7 @@ public class MainMenuManager : MonoBehaviour
         if (bgmSlider != null)
         {
             PlayerPrefs.SetFloat("BGMVolume", bgmSlider.value);
-            // Catatan: Nanti kita hubungkan ke sistem AudioSource
+            ApplyBGMVolume(bgmSlider.value); // Panggil fungsi pembantu untuk mengubah volume asli di mixer
         }
     }
 
@@ -101,15 +110,26 @@ public class MainMenuManager : MonoBehaviour
         if (sfxSlider != null)
         {
             PlayerPrefs.SetFloat("SFXVolume", sfxSlider.value);
-            // Catatan: Nanti kita hubungkan ke sistem AudioSource
+            // Catatan: Tempat menyambungkan volume SFX ke mixer nanti jika diperlukan
+        }
+    }
+
+    // --- FUNGSI PEMBANTU (AUDIO MATHEMATICS) ---
+    private void ApplyBGMVolume(float value)
+    {
+        if (mainMixer != null)
+        {
+            // Mengubah nilai linear slider (0 sampai 1) menjadi skala desibel logaritmik (-80dB sampai 20dB)
+            float dbValue = Mathf.Log10(Mathf.Max(value, 0.0001f)) * 20;
+            mainMixer.SetFloat("BGMVolume", dbValue); // "BGMVolume" harus sama persis dengan nama parameter exposed lu!
         }
     }
     
-    // --- FUNGSI BANTUAN UNTUK TESTING (Bisa dipanggil pakai tombol khusus sementara) ---
+    // --- FUNGSI BANTUAN UNTUK TESTING ---
     public void DebugResetData()
     {
-        PlayerPrefs.DeleteAll(); // Menghapus semua save data
+        PlayerPrefs.DeleteAll(); 
         Debug.Log("Data direset! Level 2 kembali terkunci.");
-        SceneManager.LoadScene(SceneManager.GetActiveScene().name); // Refresh scene
+        SceneManager.LoadScene(SceneManager.GetActiveScene().name); 
     }
 }
