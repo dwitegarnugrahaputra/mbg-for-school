@@ -16,15 +16,19 @@ public class HealthManager : MonoBehaviour
     [SerializeField] private float damageCooldown = 1f;
     private float cooldownTimer;
 
-    [Header("Fade UI Components")]
-    [SerializeField] private CanvasGroup cutsceneCanvasGroup;
-    [SerializeField] private CanvasGroup retryBtnCanvasGroup;
-    [SerializeField] private CanvasGroup mainMenuBtnCanvasGroup;
-    [SerializeField] private float fadeSpeed = 1.5f; 
+    [Header("GameOver UI")]
+    [SerializeField] private GameObject gameOverPanel; 
+    [SerializeField] private CanvasGroup gameOverCanvasGroup; 
+    
+    // KITA GANTI JADI ARRAY BIAR BISA MASUKIN BANYAK TOMBOL SEKALIGUS
+    [SerializeField] private GameObject[] uiElementsToHide; 
+    
+    [SerializeField] private float fadeSpeed = 1.5f;
 
-    [Header("Audio Settings")]
-    [SerializeField] private AudioSource audioSource; // Komponen pemutar audio
-    [SerializeField] private AudioClip failSound;     // Slot untuk memasukkan file audio gagal
+    [Header("Audio Settings (SFX Tabrakan & Game Over)")]
+    [SerializeField] private AudioSource audioSource;
+    [SerializeField] private AudioClip failSound;     
+    [SerializeField] private AudioClip hitSound;      
 
     private bool isDead = false;
 
@@ -39,11 +43,9 @@ public class HealthManager : MonoBehaviour
             healthSlider.value = maxHealth;
         }
 
-        if (cutsceneCanvasGroup != null) cutsceneCanvasGroup.alpha = 0f;
-        if (retryBtnCanvasGroup != null) retryBtnCanvasGroup.alpha = 0f;
-        if (mainMenuBtnCanvasGroup != null) mainMenuBtnCanvasGroup.alpha = 0f;
+        if (gameOverPanel != null) gameOverPanel.SetActive(false);
+        if (gameOverCanvasGroup != null) gameOverCanvasGroup.alpha = 0f;
 
-        // Otomatis mengambil AudioSource jika lupa dipasang di Inspector
         if (audioSource == null)
         {
             audioSource = GetComponent<AudioSource>();
@@ -64,6 +66,11 @@ public class HealthManager : MonoBehaviour
 
         if (collision.gameObject.CompareTag("Obstacle") && cooldownTimer <= 0)
         {
+            if (audioSource != null && hitSound != null)
+            {
+                audioSource.PlayOneShot(hitSound);
+            }
+
             TakeDamage(damageAmount);
             cooldownTimer = damageCooldown;
         }
@@ -92,36 +99,33 @@ public class HealthManager : MonoBehaviour
         ArcadeCarController carScript = GetComponent<ArcadeCarController>();
         if (carScript != null) carScript.enabled = false;
 
-        if (healthBarRoot != null)
+        if (healthBarRoot != null) healthBarRoot.SetActive(false);
+        
+        // LOOPING UNTUK MEMATIKAN SEMUA TOMBOL YANG ADA DI DALAM DAFTAR
+        if (uiElementsToHide != null)
         {
-            healthBarRoot.SetActive(false);
+            foreach (GameObject ui in uiElementsToHide)
+            {
+                if (ui != null) ui.SetActive(false);
+            }
         }
 
-        // Kritis: Mainkan backsound gagal seketika saat nyawa habis!
         if (audioSource != null && failSound != null)
         {
             audioSource.PlayOneShot(failSound);
         }
 
-        StartCoroutine(PlayFadeInCutscene());
+        StartCoroutine(FadeInGameOver());
     }
 
-    private IEnumerator PlayFadeInCutscene()
+    private IEnumerator FadeInGameOver()
     {
-        yield return new WaitForSeconds(0.3f); 
+        if (gameOverPanel != null) gameOverPanel.SetActive(true);
+        if (gameOverCanvasGroup != null) gameOverCanvasGroup.alpha = 0f;
 
-        while (cutsceneCanvasGroup.alpha < 1f)
+        while (gameOverCanvasGroup != null && gameOverCanvasGroup.alpha < 1f)
         {
-            cutsceneCanvasGroup.alpha = Mathf.MoveTowards(cutsceneCanvasGroup.alpha, 1f, fadeSpeed * Time.deltaTime);
-            yield return null;
-        }
-
-        yield return new WaitForSeconds(2f);
-
-        while (retryBtnCanvasGroup.alpha < 1f || mainMenuBtnCanvasGroup.alpha < 1f)
-        {
-            retryBtnCanvasGroup.alpha = Mathf.MoveTowards(retryBtnCanvasGroup.alpha, 1f, fadeSpeed * Time.deltaTime);
-            mainMenuBtnCanvasGroup.alpha = Mathf.MoveTowards(mainMenuBtnCanvasGroup.alpha, 1f, fadeSpeed * Time.deltaTime);
+            gameOverCanvasGroup.alpha = Mathf.MoveTowards(gameOverCanvasGroup.alpha, 1f, fadeSpeed * Time.deltaTime);
             yield return null;
         }
     }

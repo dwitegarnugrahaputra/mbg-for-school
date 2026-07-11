@@ -1,64 +1,130 @@
 using UnityEngine;
-using System.Collections;
+using UnityEngine.SceneManagement;
+using System.Collections; // Wajib ditambahin buat sistem timer/fade
 
 public class DeliveryZone : MonoBehaviour
 {
     [Header("Zone Settings")]
-    [SerializeField] private string schoolName = "Sekolah 1";
-    [SerializeField] private float deliveryDuration = 2f; // Waktu loading 2 detik
+    [SerializeField] private float requiredStopTime = 3f;
+    private float currentStopTime = 0f;
+    private bool isDelivered = false;
+    
+    [SerializeField] private Renderer zoneRenderer;
+    [SerializeField] private Color successColor = Color.green;
 
-    [Header("Visual References")]
-    [SerializeField] private Renderer zoneRenderer; // Komponen Mesh Renderer kotak merah
-    [SerializeField] private Color completedColor = Color.green; // Warna hijau setelah sukses
+    [Header("UI Settings")]
+    [SerializeField] private GameObject successPanel;
+    [SerializeField] private CanvasGroup successCanvasGroup; // Slot baru untuk Fade
+    [SerializeField] private float fadeSpeed = 1.5f; // Kecepatan Fade
+    [SerializeField] private GameObject[] uiElementsToHide; 
+    
+    [Header("Audio Settings")]
+    [SerializeField] private AudioSource audioSource; // Slot buat corong suara
+    [SerializeField] private AudioClip successSound;  // Slot buat lagu menangnya
 
-    private bool isDelivering = false;
-    private bool isMissionCompleted = false;
+    [Header("Scene Settings")]
+    [SerializeField] private string levelSelectionSceneName = "LevelSelection"; 
+    [SerializeField] private string mainMenuSceneName = "MainMenu";
 
-    private void OnTriggerEnter(Collider other)
+    private void Start()
     {
-        // Cek jika yang masuk adalah Mobil Van Tegar ("Player")
-        if (other.CompareTag("Player") && !isMissionCompleted && !isDelivering)
+        if (successPanel != null) successPanel.SetActive(false);
+        if (successCanvasGroup != null) successCanvasGroup.alpha = 0f;
+        
+        if (zoneRenderer == null) zoneRenderer = GetComponent<Renderer>();
+        if (audioSource == null) audioSource = GetComponent<AudioSource>();
+    }
+
+    private void OnTriggerStay(Collider other)
+    {
+        if (isDelivered) return;
+
+        if (other.CompareTag("Player"))
         {
-            // Mulai proses loading bongkar muat menggunakan Coroutine
-            StartCoroutine(StartDeliveryLoading());
+            Rigidbody playerRb = other.attachedRigidbody;
+            
+            if (playerRb != null && playerRb.linearVelocity.magnitude < 0.1f)
+            {
+                currentStopTime += Time.deltaTime;
+                
+                if (currentStopTime >= requiredStopTime)
+                {
+                    TriggerSuccess(other.gameObject);
+                }
+            }
+            else
+            {
+                currentStopTime = 0f;
+            }
         }
     }
 
     private void OnTriggerExit(Collider other)
     {
-        // Fitur Tambahan: Kalau mobil keluar sebelum 2 detik selesai, loading dibatalkan
-        if (other.CompareTag("Player") && isDelivering && !isMissionCompleted)
+        if (other.CompareTag("Player"))
         {
-            StopAllCoroutines();
-            isDelivering = false;
-            Debug.Log("[SPPG LOGISTIC] Pengiriman gagal! Mobil keluar dari zona sebelum loading selesai.");
+            currentStopTime = 0f;
         }
     }
 
-    private IEnumerator StartDeliveryLoading()
+    private void TriggerSuccess(GameObject player)
     {
-        isDelivering = true;
-        Debug.Log($"[SPPG LOGISTIC] Sedang membongkar muatan di {schoolName}... Harap tunggu {deliveryDuration} detik.");
+        isDelivered = true;
 
-        // Menunggu selama waktu yang ditentukan (2 detik)
-        yield return new WaitForSeconds(deliveryDuration);
-
-        CompleteDelivery();
-    }
-
-    private void CompleteDelivery()
-    {
-        isDelivering = false;
-        isMissionCompleted = true;
-
-        // 1. Mengubah warna zona dari merah menjadi hijau
         if (zoneRenderer != null)
         {
-            // Mengubah warna utama material objek secara real-time
-            zoneRenderer.material.color = completedColor;
+            zoneRenderer.material.color = successColor;
         }
 
-        // 2. Memunculkan notifikasi satir/lokal sukses di Console
-        Debug.Log($"<color=green>[NOTIFIKASI] Ompreng MBG berhasil terkirim ke {schoolName}!</color>");
+        ArcadeCarController carScript = player.GetComponent<ArcadeCarController>();
+        if (carScript != null) carScript.enabled = false;
+
+        // MATIKAN SEMUA TOMBOL & UI
+        if (uiElementsToHide != null)
+        {
+            foreach (GameObject ui in uiElementsToHide)
+            {
+                if (ui != null) ui.SetActive(false);
+            }
+        }
+
+        // MAINKAN SUARA MENANG
+        if (audioSource != null && successSound != null)
+        {
+            audioSource.PlayOneShot(successSound);
+        }
+
+        PlayerPrefs.SetInt("Level2_Unlocked", 1);
+        PlayerPrefs.Save();
+
+        // JALANKAN ANIMASI FADE
+        StartCoroutine(FadeInSuccess());
+    }
+
+    private IEnumerator FadeInSuccess()
+    {
+        if (successPanel != null) successPanel.SetActive(true);
+        if (successCanvasGroup != null) successCanvasGroup.alpha = 0f;
+
+        while (successCanvasGroup != null && successCanvasGroup.alpha < 1f)
+        {
+            successCanvasGroup.alpha = Mathf.MoveTowards(successCanvasGroup.alpha, 1f, fadeSpeed * Time.deltaTime);
+            yield return null;
+        }
+    }
+
+    public void Btn_Continue()
+    {
+        SceneManager.LoadScene(levelSelectionSceneName);
+    }
+
+    public void Btn_Restart()
+    {
+        SceneManager.LoadScene(SceneManager.GetActiveScene().name);
+    }
+
+    public void Btn_MainMenu()
+    {
+        SceneManager.LoadScene(mainMenuSceneName);
     }
 }
